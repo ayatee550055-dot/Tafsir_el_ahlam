@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, Link } from "react-router-dom";
-import { Search, Book, Tag, TrendingUp, Filter, ChevronLeft } from "lucide-react";
+import { Search, Book, Tag, TrendingUp, Filter, ChevronLeft, Sparkles, Wand2 } from "lucide-react";
 import SEO from "../components/SEO";
 
 function normalizeArabic(text: string): string {
@@ -94,7 +94,7 @@ export default function SymbolsDictionary() {
     const delayDebounceFn = setTimeout(() => {
       const searchParam = search ? `search=${encodeURIComponent(search)}` : "";
       const categoryParam = selectedCategory && selectedCategory !== "الكل" ? `category=${encodeURIComponent(selectedCategory)}` : "";
-      const limitParam = "limit=2000";
+      const limitParam = "limit=100";
       const queryStr = [searchParam, categoryParam, limitParam].filter(Boolean).join("&");
       
       fetch(`/api/symbols${queryStr ? "?" + queryStr : ""}`)
@@ -102,9 +102,14 @@ export default function SymbolsDictionary() {
         .then(data => {
           if (Array.isArray(data)) {
             setSymbols(data);
+          } else {
+            setSymbols([]);
           }
         })
-        .catch(console.error)
+        .catch(err => {
+          console.error(err);
+          setSymbols([]);
+        })
         .finally(() => setLoading(false));
     }, search ? 400 : 0); // small debounce to keep feel premium and responsive
 
@@ -147,11 +152,14 @@ export default function SymbolsDictionary() {
     return 0;
   });
 
+  const dictionaryKeywords = "قاموس الأحلام, رموز الأحلام, تفسير رموز الأحلام, دليل تفسير الأحلام, معاني الأحلام, قاموس ابن سيرين, رموز الرؤى";
+
   return (
     <div className="space-y-8">
       <SEO 
         title="قاموس رموز الأحلام" 
-        description="تصفح قاموس رموز الأحلام ومعانيها الشاملة في الإسلام لابن سيرين والنابلسي" 
+        description="تصفح قاموس رموز الأحلام ومعانيها الشاملة والدقيقة في الإسلام لابن سيرين والنابلسي، ابحث عن الرمز واقرأ تفسيره الموثق." 
+        keywords={dictionaryKeywords}
       />
       
       <div className="bg-[#041d15] rounded-3xl p-6 md:p-8 shadow-2xl border border-emerald-950 relative overflow-hidden">
@@ -324,10 +332,36 @@ export default function SymbolsDictionary() {
             )}
           </div>
         ) : (
-          <div className="text-center py-20 bg-[#03150f] rounded-2xl border border-emerald-950">
-            <Search className="w-16 h-16 text-emerald-800 mx-auto mb-4" />
-            <p className="text-xl text-emerald-200 font-bold">لا توجد رموز مطابقة لبحثك في الموسوعة.</p>
-            <p className="text-emerald-500 text-sm mt-1.5">جرب استخدام كلمات أبسط مثل "مطر" بدلاً من "الأمطار الغزيرة"، أو تصفح الأقسام مباشرة.</p>
+          <div className="text-center py-20 px-4 bg-gradient-to-br from-[#041a13] to-[#020d0a] rounded-3xl border border-emerald-900/40 shadow-xl max-w-3xl mx-auto">
+            <div className="w-20 h-20 bg-emerald-950/80 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-800/40">
+              <Search className="w-10 h-10 text-amber-400 opacity-80" />
+            </div>
+            <h3 className="text-2xl md:text-3xl text-emerald-100 font-bold font-serif mb-4">هذا الرمز غير موجود حالياً في الموسوعة المحلية</h3>
+            <p className="text-emerald-400 text-sm md:text-base mb-8 leading-relaxed max-w-xl mx-auto">
+              عذراً، لم نتمكن من العثور على تفسير مطابق للكلمة التي بحثت عنها في قواميس ابن سيرين والنابلسي وابن شاهين المحلية.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-right">
+              <div className="bg-[#03150f] p-5 rounded-2xl border border-emerald-900/30">
+                <h4 className="font-bold text-amber-300 mb-2 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  نصيحة ذكية 1
+                </h4>
+                <p className="text-sm text-emerald-100/70">حاول البحث باستخدام كلمة مفردة ومرادفة أبسط (مثال: ابحث عن "بحر" بدلاً من "البحر العميق").</p>
+              </div>
+              <div className="bg-[#03150f] p-5 rounded-2xl border border-emerald-900/30">
+                <h4 className="font-bold text-amber-300 mb-2 flex items-center gap-2">
+                  <Wand2 className="w-4 h-4" />
+                  نصيحة ذكية 2
+                </h4>
+                <p className="text-sm text-emerald-100/70">انتقل إلى الصفحة الرئيسية واستخدم "محلل الأحلام الذكي" لتحليل الحلم كاملاً وتوليد تفسير فوري ودقيق.</p>
+              </div>
+            </div>
+            
+            <Link to="/" className="inline-flex items-center gap-2 mt-8 px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-emerald-950 font-bold rounded-xl hover:scale-105 transition-transform shadow-lg">
+              العودة للصفحة الرئيسية
+              <ChevronLeft className="w-5 h-5" />
+            </Link>
           </div>
         )}
       </div>

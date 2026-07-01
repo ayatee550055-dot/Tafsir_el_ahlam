@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
+import Fuse from "fuse.js";
 
 dotenv.config();
 
@@ -198,15 +199,40 @@ function populateMassiveSymbolsIndex() {
         const slug = name.replace(/\s+/g, "-");
         const id = `gen_${idCounter++}`;
         const searchCount = Math.floor(Math.random() * 950) + 50;
-        const shortDesc = `تفسير ودلالات رؤية ${name} في المنام بالتفصيل الشرعي وفق كبار أئمة التفسير مثل ابن سيرين والنابلسي.`;
+        const shortDesc = `اكتشف التفسير الشامل والدقيق لرؤية ${name} في المنام. تعرف على الدلالات الروحية والرسائل الخفية التي يحملها هذا الحلم وفقاً لكبار المفسرين مثل ابن سيرين والنابلسي.`;
+        
+        const introduction = `رؤية ${name} في المنام تحمل في طياتها العديد من المعاني والدلالات التي تختلف باختلاف حالة الرائي وتفاصيل الحلم. تعتبر هذه الرؤية من الرؤى الهامة التي قد تحمل بشارات خير أو تحذيرات يجب الانتباه إليها.`;
+        
+        const ibnSirin = `يرى الإمام ابن سيرين أن ${name} في المنام يرمز إلى التغيرات القادمة في حياة الرائي. إذا كانت الرؤية محمودة وتشعرك بالراحة، فهي تدل على الرزق والبركة والتوفيق، وإذا كانت غير ذلك فقد تشير إلى عقبات يجب تجاوزها بالصبر والدعاء.`;
+        
+        const nabulsi = `أما الإمام النابلسي فيفسر رؤية ${name} على أنها دلالة على الحالة النفسية والروحية للحالم. قد تشير إلى ضرورة التأمل في القرارات الأخيرة أو العودة إلى طريق الصواب والتقرب إلى الله.`;
+        
+        const forSingle = `بالنسبة للفتاة العزباء، ${name} يشير إلى بدايات جديدة قد تكون في مجال العمل أو العاطفة. قد يكون دليلاً على اقتراب حدث سعيد أو تحقيق أمنية طال انتظارها.`;
+        
+        const forMarried = `للمرأة المتزوجة، ترمز هذه الرؤية إلى الاستقرار الأسري وتجاوز الصعوبات، أو قد تكون إشارة لخبر سعيد يخص أسرتها وأبنائها وتفريج للكروب.`;
+        
+        const forPregnant = `إذا رأت الحامل ${name}، فهذا يدل على تيسير أمور الولادة والتمتع بصحة جيدة لها ولجنينها بإذن الله وقدوم الخير مع المولود.`;
+        
+        const goodOmens = `من بشائر هذه الرؤية أنها تدل على زوال الهموم، سعة الرزق، سماع أخبار مفرحة، والنجاة من المكائد.`;
+        
+        const badOmens = `قد تحذر الرؤية من التسرع في اتخاذ القرارات، أو الثقة في أشخاص غير جديرين بها، أو المرور بفترة من التوتر النفسي التي تحتاج إلى حكمة.`;
 
         MASSIVE_SYMBOLS_INDEX.push({
           id,
           slug,
           name,
+          baseWord: noun,
           category,
           shortDesc,
           searchCount,
+          introduction,
+          ibnSirin,
+          nabulsi,
+          forSingle,
+          forMarried,
+          forPregnant,
+          goodOmens,
+          badOmens,
           isGenerated: true
         });
       }
@@ -338,6 +364,8 @@ async function generateAISymbol(queryOrSlug: string): Promise<any | null> {
 Generate a comprehensive, high-fidelity dream interpretation object for the following dream symbol, scenario, or phrase: "${queryOrSlug}".
 If the input is a sentence or complex scenario (e.g., "رأيت أني أسبح في بحر هائج"), extract the core symbol (e.g., "البحر الهائج" or "السباحة في البحر") and interpret it fully.
 
+CRITICAL INSTRUCTION: You MUST strictly base the interpretations on the works of Ibn Sirin, Al-Nabulsi, and Ibn Shaheen. For every section (ibnSirin, nabulsi, ibnShaheen, and the general advice sections), you MUST ensure the text reflects their actual methodologies. 
+
 The response must be in Arabic (except for the slug and englishKeyword) and must follow this exact JSON structure:
 {
   "slug": "a unique English lowercase slug for URL use, e.g., 'scorpion' or 'falling-from-height'",
@@ -345,9 +373,9 @@ The response must be in Arabic (except for the slug and englishKeyword) and must
   "category": "choose EXACTLY one of these: 'الحيوانات', 'الطبيعة', 'الطيور', 'الحشرات', 'الزواج والعلاقات', 'الحمل والأطفال', 'المال والذهب', 'السفر', 'العمل والوظائف', 'الطعام والشراب', 'البيت والأثاث', 'الموت والمرض'",
   "shortDesc": "a precise, engaging 1-2 sentence Arabic summary of the dream symbol",
   "introduction": "a beautiful, spiritual and psychological Arabic introduction to this symbol in dreams (2-3 paragraphs)",
-  "ibnSirin": "highly detailed Arabic interpretation according to Imam Ibn Sirin (at least 3 paragraphs), discussing different states",
-  "nabulsi": "highly detailed Arabic interpretation according to Imam Al-Nabulsi (at least 3 paragraphs)",
-  "ibnShaheen": "detailed Arabic interpretation according to Imam Ibn Shaheen (at least 2 paragraphs)",
+  "ibnSirin": "highly detailed Arabic interpretation according to Imam Ibn Sirin (at least 3 paragraphs), discussing different states. MUST end with '(المصدر: تفسير ابن سيرين)'",
+  "nabulsi": "highly detailed Arabic interpretation according to Imam Al-Nabulsi (at least 3 paragraphs). MUST end with '(المصدر: تعطير الأنام للنابلسي)'",
+  "ibnShaheen": "detailed Arabic interpretation according to Imam Ibn Shaheen (at least 2 paragraphs). MUST end with '(المصدر: الإشارات في علم العبارات لابن شاهين)'",
   "forSingle": "detailed Arabic advice and interpretation for a single woman (العزباء)",
   "forMarried": "detailed Arabic advice and interpretation for a married woman (المتزوجة)",
   "forPregnant": "detailed Arabic advice and interpretation for a pregnant woman (الحامل)",
@@ -698,6 +726,34 @@ const MOCK_SYMBOLS = [
       { title: "الاغتسال بماء المطر", content: "توبة للعاصي، وشفاء للمريض، وسداد دين للمديون، وغنى للفقير." },
       { title: "المطر الغزير المدمر", content: "يدل على الفتن والحروب، أو سلطان جائر يظلم الناس، أو انتشار أمراض معدية." }
     ]
+  },
+  {
+    id: "8",
+    slug: "travel",
+    name: "السفر",
+    category: "السفر",
+    shortDesc: "السفر في المنام يدل على الانتقال من حال إلى حال وتغير الأحوال.",
+    imageUrl: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=800&q=80",
+    ibnSirin: "يرى الإمام محمد بن سيرين أن السفر في المنام يعبر عن اسمه، فهو 'يسفر' عن أخلاق الناس ومعادنهم. كما يدل على الانتقال من مكان إلى آخر، أو من حال إلى حال أفضل أو أسوأ بناءً على ما يراه الرائي في سفره. السفر المريح والسريع يدل على تحقيق الأمنيات وتيسير الأمور، بينما السفر المتعب والشاق يعبر عن العقبات في طريق الرائي. (المصدر: تفسير ابن سيرين)",
+    nabulsi: "ويضيف الشيخ عبد الغني النابلسي أن السفر يدل على استطلاع أحوال الناس، أو سداد الديون. من رأى أنه سافر إلى مكان مجهول لا يعرفه فقد يدل ذلك على الموت أو المرض الشديد إذا كان الرائي مريضاً. الانتقال من دار إلى دار أفضل منها دلالة على تحسن شامل في حياة الرائي. (المصدر: تعطير الأنام للنابلسي)",
+    ibnShaheen: "أما الإمام ابن شاهين فيقول إن السفر في المنام يؤول على تغير الأحوال. من رأى أنه يسافر راكباً على دابة أو طائرة فهو عز ورفعة ونيل مراد. ومن رأى أنه مسافر على قدميه فهو دين يثقل كاهله لقوله تعالى: (يأتوك رجالاً). (المصدر: الإشارات في علم العبارات لابن شاهين)",
+    forSingle: "رؤية السفر للعزباء بشارة بالانتقال إلى حياة جديدة، قد تكون من خلال زواج من شخص صالح أو الحصول على فرصة عمل مميزة. السفر المريح يدل على التوفيق، بينما تعطل السفر يعكس تأخر بعض أمنياتها وعليها بالدعاء والصبر.",
+    forMarried: "للمتزوجة، السفر يدل على تغيرات في بيتها وحياتها الزوجية. إذا كان السفر برفقة الزوج وكان مريحاً فهو ترابط ومحبة ورزق قادم لهما. أما السفر الشاق فهو مسؤوليات جديدة تقع على عاتقها وتتطلب منها جهداً وصبراً.",
+    forPregnant: "السفر للحامل محمود إذا كان سهلاً ومريحاً، ويدل على تيسير الولادة وسلامتها وسلامة الجنين. حقيبة السفر للحامل تدل على اقتراب موعد الولادة والاستعداد لاستقبال المولود الجديد.",
+    forDivorced: "للمطلقة، السفر هو طي لصفحة الماضي والانتقال إلى مرحلة جديدة مليئة بالفرص. إذا رأت أنها تسافر بمفردها وتشعر بالسعادة فهو استقلال وتحقيق لذاتها وعوض من الله عز وجل.",
+    forSingleMan: "للرجل الأعزب، السفر سعي للرزق وطموح عالٍ. يدل السفر على تغيير جذري في حياته إما زواج أو فرصة عمل أو تغيير في مجال دراسته وعمله للأفضل.",
+    forMarriedMan: "للرجل المتزوج، السفر يدل على سعيه لتوفير العيش الكريم لأسرته. قد يدل على ترقية في عمله أو مشروع جديد يدر عليه ربحاً، وتجهيز حقائب السفر قرارات مصيرية سيتخذها قريباً.",
+    goodOmens: "من البشارات: السفر المريح، السفر بالطائرة أو وسيلة نقل سريعة، الوصول للوجهة المحددة بسلام، والسفر إلى أماكن مقدسة كالحج أو العمرة.",
+    badOmens: "من المحذرات: السفر مشياً على الأقدام (دلالة على الديون)، ضياع تذكرة السفر أو جواز السفر، الضياع في طريق السفر، والسفر إلى مكان مجهول ومخيف.",
+    faqs: [
+      { question: "رأيت أنني أجهز حقائب السفر ولكنني لم أسافر، ما التفسير؟", answer: "تجهيز الحقائب يدل على النية في اتخاذ قرار حاسم أو الاستعداد لتغيير قادم في حياتك، وعدم السفر يدل على ترددك أو انتظارك للوقت المناسب." },
+      { question: "هل تعطل السفر في المنام فأل سيء؟", answer: "تعطل السفر في المنام يدل على تعطل بعض المصالح الدنيوية أو تأجيل لبعض المشاريع، ولكنه قد يكون خيراً صرفه الله عنك وعليك بالاستخارة." }
+    ],
+    searchCount: 1750,
+    variations: [
+      { title: "الرجوع من السفر", content: "الرجوع من السفر توبة من المعاصي، وسداد للديون، وقضاء للحاجات، وعودة لغائب." },
+      { title: "الضياع في السفر", content: "يدل على التشتت وعدم وضوح الرؤية في اتخاذ القرارات المهمة في حياة الرائي." }
+    ]
   }
 ];
 
@@ -789,44 +845,54 @@ app.get("/api/symbols", async (req, res) => {
       }
     }
     
-    // Apply robust Arabic search filtering in memory
+    // Apply robust fuzzy search using Fuse.js
     if (search && search.trim() !== "") {
       const normalizedQuery = normalizeArabic(search);
-      let filtered = symbols.filter(s => {
-        const normalizedName = normalizeArabic(s.name || "");
-        const normalizedDesc = normalizeArabic(s.shortDesc || "");
-        const normalizedIbnSirin = normalizeArabic(s.ibnSirin || "");
-        const normalizedNabulsi = normalizeArabic(s.nabulsi || "");
-        return (
-          normalizedName.includes(normalizedQuery) ||
-          normalizedDesc.includes(normalizedQuery) ||
-          normalizedIbnSirin.includes(normalizedQuery) ||
-          normalizedNabulsi.includes(normalizedQuery)
-        );
-      });
+      
+      // We normalize the dataset for search as well to handle Arabic variations like ا/أ/إ
+      const searchableSymbols = symbols.map(s => ({
+        ...s,
+        searchableName: normalizeArabic(s.name || ""),
+        searchableDesc: normalizeArabic(s.shortDesc || ""),
+        searchableIbnSirin: normalizeArabic(s.ibnSirin || "")
+      }));
 
-      // Sort filtered results to place exact matches and relevant prefixes first
-      filtered.sort((a, b) => {
-        const normA = normalizeArabic(a.name || "");
-        const normB = normalizeArabic(b.name || "");
-        
-        const exactA = normA === normalizedQuery ? 1 : 0;
-        const exactB = normB === normalizedQuery ? 1 : 0;
-        if (exactA !== exactB) return exactB - exactA; // Exact matches first
-
-        const startsA = normA.startsWith(normalizedQuery) ? 1 : 0;
-        const startsB = normB.startsWith(normalizedQuery) ? 1 : 0;
-        if (startsA !== startsB) return startsB - startsA; // Starts with query second
-
-        return 0;
+      const fuseOptions = {
+        isCaseSensitive: false,
+        includeScore: true,
+        shouldSort: true,
+        threshold: 0.5, // Adjust for fuzziness
+        ignoreLocation: true,
+        keys: [
+          { name: "searchableName", weight: 0.7 },
+          { name: "searchableDesc", weight: 0.2 },
+          { name: "searchableIbnSirin", weight: 0.1 }
+        ]
+      };
+      
+      const fuse = new Fuse(searchableSymbols, fuseOptions);
+      const fuseResults = fuse.search(normalizedQuery);
+      
+      let filtered = fuseResults.map(result => {
+        // Strip out the temporary searchable fields before returning
+        const item = { ...result.item };
+        delete item.searchableName;
+        delete item.searchableDesc;
+        delete item.searchableIbnSirin;
+        return item;
       });
 
       // If we got NO results, trigger our live AI Generator on the fly!
       if (filtered.length === 0 && search.trim().length >= 2) {
         console.log(`No results found for "${search}". Triggering AI Dream Generation...`);
-        const newSymbol = await generateAISymbol(search);
-        if (newSymbol) {
-          filtered = [newSymbol];
+        try {
+          const newSymbol = await generateAISymbol(search);
+          if (newSymbol) {
+            filtered = [newSymbol];
+          }
+        } catch (genError) {
+          console.error("AI Generation failed:", genError);
+          // don't fail the request, just return empty filtered array
         }
       }
       symbols = filtered;
@@ -858,7 +924,8 @@ app.get("/api/symbols/:slug", async (req, res) => {
     }
     
     // 2. Check predefined and dynamic arrays
-    const symbol = [...MOCK_SYMBOLS, ...DYNAMIC_SYMBOLS].find(s => s.slug === slug || s.id === slug);
+    populateMassiveSymbolsIndex();
+    const symbol = [...MOCK_SYMBOLS, ...DYNAMIC_SYMBOLS, ...MASSIVE_SYMBOLS_INDEX].find(s => s.slug === slug || s.id === slug);
     if (symbol) return res.json(symbol);
     
     // 3. Dynamic AI Fallback if not found anywhere!
@@ -875,6 +942,99 @@ app.get("/api/symbols/:slug", async (req, res) => {
 });
 
 
+
+app.post("/api/analyze-dream", async (req, res) => {
+  try {
+    const { dreamText } = req.body;
+    if (!dreamText || dreamText.trim().length < 5) {
+      return res.status(400).json({ error: "النص قصير جداً" });
+    }
+
+    const extractionSchema = {
+      type: "OBJECT",
+      properties: {
+        symbols: {
+          type: "ARRAY",
+          description: "قائمة بأهم الرموز (كلمة واحدة أو اثنتين) المستخرجة من الحلم.",
+          items: {
+            type: "STRING"
+          }
+        }
+      },
+      required: ["symbols"]
+    };
+
+    const prompt = `استخرج أهم الرموز والعناصر الأساسية من هذا الحلم باللغة العربية.\nالحلم:\n"${dreamText}"\nاستخرج الأسماء فقط مثل (الأسد، البحر، المطر، السقوط، الذهب).`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: extractionSchema as any,
+        temperature: 0.2
+      }
+    });
+
+    const resultText = response.text;
+    if (!resultText) {
+      throw new Error("Empty response from AI");
+    }
+
+    const parsed = JSON.parse(resultText);
+    const extractedKeywords: string[] = parsed.symbols || [];
+
+    // Search for matches in our indexes
+    populateMassiveSymbolsIndex();
+    const allSymbols = [...MOCK_SYMBOLS, ...DYNAMIC_SYMBOLS, ...MASSIVE_SYMBOLS_INDEX].map(s => ({
+      ...s,
+      searchableName: normalizeArabic(s.name || ""),
+      searchableDesc: normalizeArabic(s.shortDesc || "")
+    }));
+
+    const fuseOptions = {
+      isCaseSensitive: false,
+      includeScore: true,
+      shouldSort: true,
+      threshold: 0.5,
+      ignoreLocation: true,
+      keys: [
+        { name: "searchableName", weight: 0.8 },
+        { name: "searchableDesc", weight: 0.2 }
+      ]
+    };
+    
+    const fuse = new Fuse(allSymbols, fuseOptions);
+    const matchedSymbolsMap = new Map();
+
+    for (const keyword of extractedKeywords) {
+      const normalizedKeyword = normalizeArabic(keyword);
+      const results = fuse.search(normalizedKeyword);
+      
+      // Take top 2 matches for each keyword
+      const topResults = results.slice(0, 2);
+      for (const res of topResults) {
+        if (!matchedSymbolsMap.has(res.item.slug)) {
+          const item = { ...res.item };
+          delete item.searchableName;
+          delete item.searchableDesc;
+          matchedSymbolsMap.set(item.slug, item);
+        }
+      }
+    }
+
+    const finalSymbols = Array.from(matchedSymbolsMap.values());
+
+    res.json({
+      keywords: extractedKeywords,
+      symbols: finalSymbols
+    });
+
+  } catch (error: any) {
+    console.error("Error analyzing dream:", error);
+    res.status(500).json({ error: "حدث خطأ أثناء تحليل الحلم" });
+  }
+});
 
 // Setup dev/production environments
 async function setupVite() {

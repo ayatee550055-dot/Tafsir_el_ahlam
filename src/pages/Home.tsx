@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, Book, Sparkles, TrendingUp, Clock, Eye, Tag, ChevronLeft, ChevronDown, Award } from "lucide-react";
+import { Search, Book, Sparkles, TrendingUp, Clock, Eye, Tag, ChevronLeft, ChevronDown, Award, Wand2, Loader2 } from "lucide-react";
 import SEO from "../components/SEO";
 import { getVerifiedImageUrl } from "../utils/imageHelper";
 import LazyImage from "../components/LazyImage";
@@ -47,6 +47,47 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [dailySymbol, setDailySymbol] = useState<Symbol | null>(null);
 
+  // Dream Analyzer State
+  const [dreamText, setDreamText] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
+  const [analyzedResult, setAnalyzedResult] = useState<{ keywords: string[], symbols: Symbol[] } | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('dreamHistory');
+      if (savedHistory) {
+        setHistory(JSON.parse(savedHistory));
+      }
+    } catch (e) {
+      console.error("Failed to load history", e);
+    }
+  }, []);
+
+  const saveToHistory = (query: string, result: any) => {
+    const newEntry = {
+      id: Date.now().toString(),
+      query,
+      result,
+      date: new Date().toISOString()
+    };
+    
+    setHistory(prev => {
+      const filtered = prev.filter(item => item.query !== query);
+      const updated = [newEntry, ...filtered].slice(0, 5);
+      localStorage.setItem('dreamHistory', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const loadFromHistory = (item: any) => {
+    setDreamText(item.query);
+    setAnalyzedResult(item.result);
+    setAnalyzeError("");
+    window.scrollTo({ top: document.getElementById('ai-analyzer-section')?.offsetTop || 0, behavior: 'smooth' });
+  };
+
   useEffect(() => {
     fetch("/api/symbols?limit=12")
       .then(res => res.json())
@@ -76,8 +117,17 @@ export default function Home() {
     const timer = setTimeout(() => {
       fetch(`/api/symbols?search=${encodeURIComponent(search)}&limit=5`)
         .then(res => res.json())
-        .then(data => setSuggestions(data))
-        .catch(console.error);
+        .then(data => {
+          if (Array.isArray(data)) {
+            setSuggestions(data);
+          } else {
+            setSuggestions([]);
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          setSuggestions([]);
+        });
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
@@ -88,20 +138,68 @@ export default function Home() {
     }
   };
 
+  const handleAnalyzeDream = async () => {
+    if (dreamText.trim().length < 5) {
+      setAnalyzeError("يرجى كتابة تفاصيل الحلم بشكل أوضح (5 أحرف على الأقل).");
+      return;
+    }
+    
+    setIsAnalyzing(true);
+    setAnalyzeError("");
+    setAnalyzedResult(null);
+
+    try {
+      const response = await fetch("/api/analyze-dream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dreamText })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "حدث خطأ أثناء تحليل الحلم");
+      }
+
+      const data = await response.json();
+      setAnalyzedResult(data);
+      saveToHistory(dreamText, data);
+    } catch (error: any) {
+      setAnalyzeError(error.message);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   // Popular Quick Symbols mapping to the design screenshot
   const popularQuickSymbols = [
     { name: "الحية", icon: "🐍", slug: "snake" },
     { name: "الأسنان", icon: "🦷", slug: "teeth" },
-    { name: "الماء", icon: "💧", slug: "sea" }, // maps to sea
+    { name: "البحر", icon: "🌊", slug: "sea" },
     { name: "المطر", icon: "🌧️", slug: "rain" },
     { name: "الزواج", icon: "💍", slug: "marriage" },
   ];
+
+  const homeSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "موسوعة آية لتفسير الأحلام",
+    "url": typeof window !== 'undefined' ? window.location.origin : '',
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "{search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  };
+
+  const homeKeywords = "تفسير الأحلام, ابن سيرين, النابلسي, ابن شاهين, الرؤيا, أضغاث الأحلام, موسوعة تفسير الأحلام, مفسر أحلام ذكي, دلالات الأحلام";
 
   return (
     <div className="space-y-16">
       <SEO 
         title="الرئيسية" 
-        description="موقع آية لتفسير الأحلام والرؤى بالطريقة الإسلامية الشرعية استناداً إلى كبار المفسرين (ابن سيرين، النابلسي، وابن شاهين)." 
+        description="موسوعة آية لتفسير الأحلام والرؤى بالطريقة الإسلامية الشرعية استناداً إلى كبار المفسرين مثل ابن سيرين والنابلسي وابن شاهين مع ميزة محلل الأحلام الذكي." 
+        schema={homeSchema}
+        keywords={homeKeywords}
       />
       
       {/* Hero Search Section - High-Fidelity to Left Screenshot */}
@@ -208,6 +306,196 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Educational & Guide Sections */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        {/* User Guide */}
+        <section className="bg-gradient-to-br from-[#041a13] to-[#020d0a] border border-emerald-900/40 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl group-hover:bg-amber-500/10 transition-colors"></div>
+          <div className="relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-5">
+              <Book className="w-6 h-6 text-amber-400" />
+            </div>
+            <h2 className="text-xl md:text-2xl font-bold font-serif text-emerald-100 mb-4">دليل البحث السريع</h2>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-900/50 flex items-center justify-center text-amber-400 text-xs font-bold shrink-0 mt-0.5">1</span>
+                <p className="text-sm text-emerald-100/80 leading-relaxed">ابحث عن <strong className="text-amber-300">الكلمة المفتاحية</strong> للحلم (مثل: السفر، البحر، الأسد) بدلاً من كتابة جملة طويلة لتصل للتفسير الموثق فوراً.</p>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-900/50 flex items-center justify-center text-amber-400 text-xs font-bold shrink-0 mt-0.5">2</span>
+                <p className="text-sm text-emerald-100/80 leading-relaxed">استخدم <strong className="text-amber-300">محلل الأحلام الذكي</strong> الموجود بالأسفل إذا كان حلمك طويلاً ومترابطاً وسيقوم باستخراج الرموز لك.</p>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-900/50 flex items-center justify-center text-amber-400 text-xs font-bold shrink-0 mt-0.5">3</span>
+                <p className="text-sm text-emerald-100/80 leading-relaxed">تأكد من قراءة التفسير الخاص بوضعك (أعزب، متزوج، إلخ) فالتفسير يختلف باختلاف حال الرائي.</p>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        {/* Islamic Tips */}
+        <section className="bg-gradient-to-br from-[#041a13] to-[#020d0a] border border-emerald-900/40 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition-colors"></div>
+          <div className="relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-5">
+              <Sparkles className="w-6 h-6 text-emerald-400" />
+            </div>
+            <h2 className="text-xl md:text-2xl font-bold font-serif text-emerald-100 mb-4">الرؤيا وأضغاث الأحلام</h2>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2"></span>
+                <p className="text-sm text-emerald-100/80 leading-relaxed"><strong className="text-emerald-300">الرؤيا الصادقة:</strong> تكون واضحة ومترابطة، يسهل تذكرها، وتترك أثراً نفسياً عميقاً (بشارة أو نذير)، وهي من الله تعالى.</p>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-2"></span>
+                <p className="text-sm text-emerald-100/80 leading-relaxed"><strong className="text-amber-300">حديث النفس:</strong> هو ما يحدث به الإنسان نفسه في اليقظة فيراه في منامه، كمن يفكر في السفر فيحلم به.</p>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-2"></span>
+                <p className="text-sm text-emerald-100/80 leading-relaxed"><strong className="text-red-300">حلم الشيطان (أضغاث الأحلام):</strong> يكون غير مترابط، مفزعاً ومخيفاً، والهدف منه إحزان المسلم، ويُسن الاستعاذة منه وعدم ذكره لأحد.</p>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </div>
+
+      {/* AI Dream Analyzer Section */}
+      <section id="ai-analyzer-section" className="max-w-4xl mx-auto w-full">
+        <div className="bg-gradient-to-br from-[#042016] to-[#02130d] border border-emerald-900/50 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="p-6 md:p-10 border-b border-emerald-900/30 bg-[#052b1e]/30">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center">
+                <Wand2 className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold font-serif text-amber-300">محلل الأحلام الذكي</h2>
+                <p className="text-sm text-emerald-100/70 mt-1">اكتب حلمك بالتفصيل وسنقوم باستخراج رموزه وتفسيرها لك</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <textarea
+                value={dreamText}
+                onChange={(e) => setDreamText(e.target.value)}
+                placeholder="اكتب حلمك هنا بالتفصيل... (مثال: رأيت أنني أمشي في غابة مظلمة ثم ظهر لي أسد كبير...)"
+                className="w-full h-32 md:h-40 p-4 rounded-xl bg-[#03150f]/60 border border-emerald-800/40 text-emerald-100 placeholder-emerald-600/50 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/10 outline-none resize-none transition-all"
+              />
+              
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-xs text-emerald-500/80 font-medium">
+                  {analyzeError ? (
+                    <span className="text-red-400">{analyzeError}</span>
+                  ) : (
+                    "يتم تحليل النص باستخدام تقنيات الذكاء الاصطناعي لاستخراج أهم الرموز."
+                  )}
+                </p>
+                <button
+                  onClick={handleAnalyzeDream}
+                  disabled={isAnalyzing || dreamText.trim().length === 0}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-emerald-950 font-bold hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      جاري التحليل...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      حلل الحلم
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Analysis Results */}
+          {analyzedResult && (
+            <div className="p-6 md:p-10 bg-[#041a13]/80">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-emerald-100 mb-3">الرموز المستخرجة:</h3>
+                <div className="flex flex-wrap gap-2">
+                  {analyzedResult.keywords.map((kw, i) => (
+                    <span key={i} className="px-3 py-1.5 rounded-lg bg-emerald-900/40 border border-emerald-800/60 text-amber-300 text-sm font-bold">
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              
+              {analyzedResult.symbols.length > 0 ? (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-emerald-100 mb-4">التفسيرات المطابقة:</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {analyzedResult.symbols.map(sym => (
+                      <Link 
+                        key={sym.id} 
+                        to={`/symbol/${sym.slug}`}
+                        className="flex items-start gap-4 p-4 rounded-xl bg-[#052b1e]/40 border border-emerald-900/40 hover:border-amber-400/40 hover:bg-[#063324] transition-all group"
+                      >
+                        <div className="w-12 h-12 shrink-0 rounded-lg bg-emerald-950 flex items-center justify-center border border-emerald-800/40">
+                          <Book className="w-6 h-6 text-amber-400 group-hover:scale-110 transition-transform" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-lg text-emerald-100 group-hover:text-amber-300 transition-colors">
+                            {sym.name}
+                          </h4>
+                          <p className="text-xs text-emerald-500 mt-1 mb-2">التصنيف: {sym.category}</p>
+                          <p className="text-sm text-emerald-100/70 line-clamp-2">
+                            {sym.shortDesc}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-emerald-400 font-bold">لم نتمكن من العثور على تفسيرات دقيقة لهذه الرموز في الوقت الحالي.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Recent History Section */}
+      {history.length > 0 && (
+        <section className="max-w-4xl mx-auto w-full">
+          <div className="bg-[#03150f]/80 border border-emerald-900/40 rounded-3xl p-6 md:p-8 shadow-xl">
+            <div className="flex items-center gap-3 mb-6 border-b border-emerald-900/30 pb-4">
+              <Clock className="w-6 h-6 text-emerald-500" />
+              <h2 className="text-xl font-bold font-serif text-emerald-100">سجل التفسيرات السابقة</h2>
+            </div>
+            <div className="space-y-4">
+              {history.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => loadFromHistory(item)}
+                  className="w-full flex items-start sm:items-center gap-4 p-4 rounded-2xl bg-[#041d15] border border-emerald-900/30 hover:border-emerald-500/30 hover:bg-[#052b1e] transition-all text-right group"
+                >
+                  <div className="w-10 h-10 shrink-0 rounded-full bg-emerald-950 flex items-center justify-center border border-emerald-900">
+                    <Clock className="w-4 h-4 text-emerald-500 group-hover:text-amber-400 transition-colors" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-emerald-100 text-sm md:text-base line-clamp-1 group-hover:text-amber-100 transition-colors">
+                      {item.query}
+                    </p>
+                    <p className="text-xs text-emerald-500 mt-1 flex items-center gap-2">
+                      <span>{new Date(item.date).toLocaleDateString("ar-EG")}</span>
+                      <span className="w-1 h-1 rounded-full bg-emerald-800"></span>
+                      <span>{item.result.symbols?.length || 0} رموز مستخرجة</span>
+                    </p>
+                  </div>
+                  <ChevronLeft className="w-5 h-5 text-emerald-700 group-hover:text-amber-400 transition-colors hidden sm:block" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Main Grid: Body + Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
         
@@ -257,7 +545,7 @@ export default function Home() {
                   <div className="col-span-2 h-48 md:h-full min-h-[180px] md:min-h-[250px] overflow-hidden relative order-1 md:order-2">
                     <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#041e14] via-transparent to-transparent z-10"></div>
                     <LazyImage 
-                      src={getVerifiedImageUrl(dailySymbol.name || dailySymbol.slug)}
+                      src={getVerifiedImageUrl(dailySymbol.baseWord || dailySymbol.name || dailySymbol.slug)}
                       alt={`صورة تعبيرية لتفسير حلم ورؤية ${dailySymbol.name} في المنام`}
                       className="group-hover:scale-105 transition-transform duration-700"
                     />
@@ -307,7 +595,7 @@ export default function Home() {
                     <div className="w-full aspect-video sm:aspect-square shrink-0 overflow-hidden relative">
                       <div className="absolute inset-0 bg-gradient-to-t from-[#041f15] via-[#041f15]/20 to-transparent z-10"></div>
                       <LazyImage 
-                        src={getVerifiedImageUrl(sym.name || sym.slug)} 
+                        src={getVerifiedImageUrl(sym.baseWord || sym.name || sym.slug)} 
                         alt={`صورة توضيحية لتفسير رمز ${sym.name} في المنام بالتفصيل الشرعي`} 
                         className="group-hover:scale-110 transition-transform duration-700" 
                       />
@@ -354,7 +642,7 @@ export default function Home() {
                 >
                   <div className="w-full sm:w-44 h-32 rounded-xl overflow-hidden bg-emerald-950 shrink-0 relative border border-emerald-900/20">
                     <LazyImage 
-                      src={getVerifiedImageUrl(sym.name || sym.slug)} 
+                      src={getVerifiedImageUrl(sym.baseWord || sym.name || sym.slug)} 
                       alt={`صورة حية لرمز الأحلام ${sym.name} وفق كبار علماء التفسير`} 
                       className="group-hover:scale-105 transition-transform duration-700" 
                     />

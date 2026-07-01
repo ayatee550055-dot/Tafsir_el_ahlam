@@ -120,7 +120,7 @@ function getSymbolImages(symbol: any): SymbolImages {
                          symbol.imageUrl.startsWith("http") &&
                          !symbol.imageUrl.includes("photo-1564507592333");
 
-  const primaryImg = hasCustomImage ? symbol.imageUrl : getVerifiedImageUrl(name || slug);
+  const primaryImg = hasCustomImage ? symbol.imageUrl : getVerifiedImageUrl(symbol.baseWord || name || slug);
 
   return {
     primary: primaryImg || starryFallback,
@@ -219,7 +219,7 @@ ${window.location.href}`;
         setSymbol(data);
         
         // Fetch related symbols in same category
-        fetch(`/api/symbols?category=${data.category}`)
+        fetch(`/api/symbols?category=${encodeURIComponent(data.category)}&limit=5`)
           .then(res => res.json())
           .then(relatedData => {
             setRelated(relatedData.filter((s: Symbol) => s.slug !== slug).slice(0, 4));
@@ -270,12 +270,44 @@ ${window.location.href}`;
   const baseDescription = `ما تفسير حلم ${symbol.name} في المنام؟ تعرف على الدلالات الشرعية الدقيقة لرؤية ${symbol.name} للعزباء، المتزوجة، الحامل، والرجل بالتفصيل الواضح والشامل وفق كبار علماء التفسير. ${cleanDesc}`;
   const seoDescription = baseDescription.length > 160 ? `${baseDescription.substring(0, 157)}...` : baseDescription;
 
+  // Generate structured data schema
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": seoTitle,
+    "description": seoDescription,
+    "image": resolvedImages.primary,
+    "author": {
+      "@type": "Organization",
+      "name": "موسوعة آية لتفسير الأحلام"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "موسوعة آية لتفسير الأحلام",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://images.unsplash.com/photo-1519818176527-0dbf83c1ce10?auto=format&fit=crop&w=150&q=80"
+      }
+    },
+    "datePublished": "2023-01-01T08:00:00+08:00",
+    "dateModified": new Date().toISOString(),
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": currentUrl
+    }
+  };
+
+  const keywords = `تفسير حلم ${symbol.name}, رؤية ${symbol.name} في المنام, تفسير ${symbol.name} ابن سيرين, تفسير حلم ${symbol.name} للعزباء, حلم ${symbol.name} للمتزوجة, ${symbol.name} في المنام للرجل, النابلسي, تفسير الأحلام`;
+
   return (
     <div className="space-y-8">
       <SEO 
         title={seoTitle} 
         description={seoDescription}
         image={resolvedImages.primary}
+        schema={schema}
+        keywords={keywords}
       />
 
       {/* Breadcrumb - Match exact top right path of right screenshot */}
